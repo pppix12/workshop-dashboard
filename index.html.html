@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026 디지털결제 개발1본부 워크샵 대시보드</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --surface2: #f1f0ec;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.2);
+    --text: #1a1a1a;
+    --text2: #666;
+    --text3: #aaa;
+    --gold-bg: #fef7e4;
+    --gold-border: #d4a017;
+    --gold-score: #a06400;
+    --silver-bg: #f3f3f3;
+    --silver-border: #aaa;
+    --silver-text: #444;
+    --blue-bg: #e8f0fb;
+    --blue-text: #1a4fa0;
+    --blue-border: #bed0f0;
+    --p1-bg: #fffbe6; --p1-rank-bg: #fff0a0; --p1-sum: #8a6500;
+    --p2-bg: #fff0f0; --p2-rank-bg: #ffd6d6; --p2-sum: #b00000;
+    --p3-bg: #eef4ff; --p3-rank-bg: #cfe0ff; --p3-sum: #1a4fa0;
+    --pn-bg: #fdfcf8;
+  }
+
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { font-size: 16px; font-weight: 600; }
+  #last-saved { font-size: 11px; color: var(--text3); white-space: nowrap; margin-left: 16px; }
+
+  .save-toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #222; color: #fff; font-size: 13px;
+    padding: 10px 18px; border-radius: 8px;
+    opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 999;
+  }
+  .save-toast.show { opacity: 1; }
+
+  /* 탭 — 스크롤 완전 제거 */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    padding: 0 24px;
+    overflow: hidden; /* 스크롤바 완전 제거 */
+  }
+  .tab-btn {
+    flex-shrink: 0;
+    padding: 13px 20px; font-size: 14px; font-weight: 500;
+    color: var(--text2); background: transparent; border: none;
+    border-bottom: 2px solid transparent; cursor: pointer;
+    margin-bottom: -1px; white-space: nowrap;
+    transition: color 0.15s; font-family: inherit;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: #1a1a1a; }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  .tab-panel { display: none; padding: 24px; }
+  .tab-panel.active { display: block; }
+
+  /* ── 팀 카드 ── */
+  .team-rank-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 28px; }
+  .team-rank-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 16px 16px;
+    display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px;
+  }
+  .team-rank-card.rank-1 { background: var(--gold-bg); border: 2px solid var(--gold-border); }
+  .team-rank-card.rank-2 { background: var(--silver-bg); border: 2px solid var(--silver-border); }
+
+  /* 메달 크게 */
+  .crown { font-size: 36px; line-height: 1; margin-bottom: 6px; }
+
+  .team-name-row { display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; margin-bottom: 2px; }
+  .team-name-display {
+    font-size: 20px; font-weight: 600; color: var(--text);
+    cursor: pointer; border-bottom: 1px dashed var(--border2); padding-bottom: 1px;
+  }
+  .rank-1 .team-name-display { border-bottom-color: var(--gold-border); }
+  .rank-2 .team-name-display { border-bottom-color: var(--silver-border); }
+  .team-name-edit-btn { font-size: 11px; color: var(--text3); background: none; border: none; cursor: pointer; font-family: inherit; }
+  .team-name-edit-btn:hover { color: var(--text2); }
+
+  .card-score { font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -2px; color: var(--text); margin-top: 6px; }
+  .rank-1 .card-score { color: var(--gold-score); }
+  .rank-2 .card-score { color: var(--silver-text); }
+  .card-sublabel { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  /* 구성원 */
+  .team-members { margin-top: 10px; width: 100%; border-top: 1px dashed var(--border2); padding-top: 8px; }
+  .members-label {
+    font-size: 10px; color: var(--text3); margin-bottom: 4px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .member-count-badge { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: var(--blue-bg); color: var(--blue-text); }
+  .member-list { font-size: 15px; color: var(--text2); text-align: left; line-height: 1.9; min-height: 20px; }
+  .member-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    background: var(--surface2); border-radius: 20px;
+    padding: 2px 10px 2px 11px; margin: 2px 2px; font-size: 15px; color: var(--text);
+  }
+  .member-del { font-size: 10px; color: var(--text3); background: none; border: none; cursor: pointer; padding: 0 0 0 2px; font-family: inherit; }
+  .member-del:hover { color: #c00; }
+  .member-empty { font-size: 15px; color: var(--text3); font-style: italic; }
+  .member-add-row { display: flex; gap: 6px; margin-top: 6px; }
+  .member-add-input {
+    flex: 1; font-size: 12px; padding: 5px 8px;
+    border-radius: 6px; border: 1px solid var(--border2);
+    background: var(--surface); color: var(--text); outline: none; font-family: inherit;
+  }
+  .member-add-input:focus { border-color: #888; }
+  .member-add-btn {
+    padding: 5px 12px; font-size: 12px; border-radius: 6px;
+    border: 1px solid var(--blue-border); background: var(--blue-bg);
+    color: var(--blue-text); cursor: pointer; font-family: inherit; white-space: nowrap;
+  }
+  .member-add-btn:hover { filter: brightness(0.95); }
+
+  /* 섹션 헤더 */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); }
+  .add-game-btn {
+    font-size: 12px; font-weight: 500; color: var(--blue-text);
+    background: var(--blue-bg); border: 1px solid var(--blue-border);
+    border-radius: 20px; padding: 5px 14px; cursor: pointer; font-family: inherit;
+  }
+  .add-game-btn:hover { filter: brightness(0.95); }
+
+  /* 테이블 */
+  .table-wrap { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; margin-bottom: 10px; overflow-x: auto; }
+  table.st { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.st th, table.st td { border-bottom: 1px solid var(--border); text-align: center; padding: 0; }
+  table.st tbody tr:last-child td { border-bottom: none; }
+  table.st th { background: var(--surface2); font-weight: 600; font-size: 14px; color: var(--text2); padding: 10px 10px; white-space: nowrap; }
+  table.st th.g-th { background: var(--blue-bg); color: var(--blue-text); min-width: 110px; }
+  table.st th.sum-th { color: var(--text); font-weight: 700; }
+  .del-game-btn {
+    display: inline-block; margin-left: 6px; width: 14px; height: 14px;
+    border-radius: 50%; background: rgba(0,0,0,0.12); color: var(--blue-text);
+    font-size: 10px; line-height: 14px; text-align: center;
+    cursor: pointer; vertical-align: middle; border: none; font-family: inherit;
+  }
+  .del-game-btn:hover { background: #e05c5c; color: #fff; }
+  table.st td.label-td { font-weight: 600; text-align: left; padding: 11px 14px; width: 100px; white-space: nowrap; font-size: 15px; }
+  table.st td.sum-td { font-weight: 700; font-size: 18px; padding: 11px 10px; width: 76px; }
+  table.st tr.t1 td { background: #fffbf0; }
+  table.st tr.t1 td.sum-td { color: var(--gold-score); }
+  table.st tr.t2 td { background: #f9f9f9; }
+  table.st tr.t2 td.sum-td { color: var(--silver-text); }
+  table.st td.rank-td { font-size: 17px; background: var(--surface2); width: 38px; }
+  table.st td.name-td { font-weight: 600; text-align: left; padding: 11px 12px; width: 88px; white-space: nowrap; font-size: 15px; }
+  table.st tr.p1 td { background: var(--p1-bg); } table.st tr.p1 td.rank-td { background: var(--p1-rank-bg); } table.st tr.p1 td.sum-td { color: var(--p1-sum); }
+  table.st tr.p2 td { background: var(--p2-bg); } table.st tr.p2 td.rank-td { background: var(--p2-rank-bg); } table.st tr.p2 td.sum-td { color: var(--p2-sum); }
+  table.st tr.p3 td { background: var(--p3-bg); } table.st tr.p3 td.rank-td { background: var(--p3-rank-bg); } table.st tr.p3 td.sum-td { color: var(--p3-sum); }
+  table.st tr.p4 td { background: var(--p3-bg); } table.st tr.p4 td.rank-td { background: var(--p3-rank-bg); } table.st tr.p4 td.sum-td { color: var(--p3-sum); }
+  table.st tr.pn td { background: var(--pn-bg); }
+  table.st td.sc-td { min-width: 120px; }
+  .sc-inner { display: flex; align-items: center; justify-content: center; gap: 1px; padding: 5px 2px; }
+  .sc-val { font-size: 16px; font-weight: 600; min-width: 38px; text-align: center; cursor: pointer; border-radius: 4px; padding: 2px 4px; }
+  .sc-val:hover { background: rgba(0,0,0,0.06); }
+  .sc-btn { width: 26px; height: 30px; font-size: 18px; border: none; background: transparent; color: var(--text3); cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+  .sc-btn:hover { background: rgba(0,0,0,0.06); color: var(--text); }
+  .sc-edit { font-size: 13px; width: 52px; text-align: center; padding: 3px 4px; border-radius: 4px; border: 1px solid #888; outline: none; font-family: inherit; }
+
+  .footer-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .reset-link { font-size: 12px; color: var(--text3); background: none; border: none; cursor: pointer; text-decoration: underline; font-family: inherit; }
+  .reset-link:hover { color: #c00; }
+
+  /* ── 아코디언 ── */
+  .accordion-list { display: flex; flex-direction: column; gap: 8px; }
+  .accordion-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .accordion-header { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: none; border: none; cursor: pointer; font-family: inherit; text-align: left; transition: background 0.15s; }
+  .accordion-header:hover { background: var(--surface2); }
+  .accordion-header.open { background: var(--surface2); }
+  .acc-left { display: flex; align-items: center; gap: 12px; }
+  .acc-icon { font-size: 20px; line-height: 1; }
+  .acc-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .acc-tag { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 20px; background: var(--blue-bg); color: var(--blue-text); }
+  .acc-arrow { font-size: 12px; color: var(--text3); transition: transform 0.2s; display: inline-block; }
+  .accordion-header.open .acc-arrow { transform: rotate(180deg); }
+  .accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+  .accordion-body.open { max-height: 800px; }
+  .accordion-body-inner { padding: 0 20px 20px; border-top: 1px solid var(--border); }
+  .game-desc-section { margin-top: 14px; }
+  .desc-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+  .desc-text { font-size: 13px; color: var(--text2); line-height: 1.75; }
+  .desc-text li { margin-left: 16px; margin-bottom: 3px; }
+  .score-table-sm { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  .score-table-sm th { background: var(--surface2); font-weight: 600; padding: 6px 12px; text-align: center; border: 1px solid var(--border); color: var(--text2); }
+  .score-table-sm td { padding: 6px 12px; text-align: center; border: 1px solid var(--border); color: var(--text); }
+  .score-table-sm.ind-score tr:nth-child(1) td { background: var(--p1-bg); color: var(--p1-sum); font-weight: 700; }
+  .score-table-sm.ind-score tr:nth-child(2) td { background: var(--p2-bg); color: var(--p2-sum); font-weight: 700; }
+  .score-table-sm.ind-score tr:nth-child(3) td { background: var(--p3-bg); color: var(--p3-sum); font-weight: 700; }
+  .score-table-sm.ind-score tr:nth-child(4) td { background: var(--p3-bg); color: var(--p3-sum); }
+  .score-table-sm.team-score tr:nth-child(1) td { background: var(--gold-bg); color: var(--gold-score); font-weight: 700; }
+  .score-table-sm.team-score tr:nth-child(2) td { background: var(--silver-bg); color: var(--silver-text); font-weight: 700; }
+  .score-table-sm.team-score tr:nth-child(3) td { background: var(--pn-bg); color: var(--text2); }
+  .desc-note { margin-top: 12px; padding: 10px 14px; background: var(--gold-bg); border-left: 3px solid var(--gold-border); border-radius: 0 8px 8px 0; font-size: 12px; color: var(--gold-score); line-height: 1.6; }
+
+  /* ── 메모장 ── */
+  .memo-wrap { display: flex; flex-direction: column; gap: 12px; height: calc(100vh - 160px); min-height: 400px; }
+  .memo-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .memo-toolbar button { font-size: 12px; padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); cursor: pointer; font-family: inherit; }
+  .memo-toolbar button:hover { background: var(--surface2); color: var(--text); }
+  .memo-toolbar button.danger { border-color: #e05c5c; color: #b00000; }
+  .memo-toolbar button.danger:hover { background: #fff0f0; }
+  .memo-toolbar .memo-info { font-size: 11px; color: var(--text3); margin-left: auto; }
+  .memo-textarea { flex: 1; width: 100%; padding: 16px 18px; font-size: 14px; line-height: 1.8; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; resize: none; outline: none; }
+  .memo-textarea:focus { border-color: #aaa; }
+  .memo-textarea::placeholder { color: var(--text3); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>2026 제1회 디지털결제 개발1본부 워크샵 — 대시보드</h1>
+  <span id="last-saved"></span>
+</header>
+<div class="save-toast" id="toast">저장됨</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('team',this)">팀전</button>
+  <button class="tab-btn" onclick="switchTab('individual',this)">개인전</button>
+  <button class="tab-btn" onclick="switchTab('rules',this)">게임 설명</button>
+  <button class="tab-btn" onclick="switchTab('memo',this)">메모장</button>
+</div>
+
+<div class="tab-panel active" id="tab-team">
+  <div class="team-rank-grid" id="team-rank-grid"></div>
+  <div class="section-header">
+    <span class="section-label">게임별 점수 입력</span>
+    <button class="add-game-btn" onclick="addGame('t')">+ 게임 추가</button>
+  </div>
+  <div class="table-wrap"><table class="st" id="team-table"></table></div>
+  <div class="footer-row"><button class="reset-link" onclick="resetTeams()">팀전 점수 초기화</button></div>
+</div>
+
+<div class="tab-panel" id="tab-individual">
+  <div class="section-header">
+    <span class="section-label">개인전 점수</span>
+    <button class="add-game-btn" onclick="addGame('i')">+ 게임 추가</button>
+  </div>
+  <div class="table-wrap"><table class="st" id="ind-table"></table></div>
+  <div class="footer-row" style="margin-top:10px;"><button class="reset-link" onclick="resetInd()">개인전 점수 초기화</button></div>
+</div>
+
+<div class="tab-panel" id="tab-rules">
+  <div class="accordion-list" id="accordion-list"></div>
+</div>
+
+<div class="tab-panel" id="tab-memo">
+  <div class="memo-wrap">
+    <div class="memo-toolbar">
+      <button onclick="copyMemo()">복사</button>
+      <button onclick="clearMemo()" class="danger">전체 삭제</button>
+      <span class="memo-info" id="memo-info"></span>
+    </div>
+    <textarea class="memo-textarea" id="memo-area" placeholder="여기에 자유롭게 메모하세요.&#10;&#10;게임 결과, 특이사항, 공지사항 등 무엇이든 적어두세요.&#10;입력하는 즉시 자동 저장됩니다." oninput="saveMemo()"></textarea>
+  </div>
+</div>
+
+<script>
+const KEY = 'ws2026_v8';
+const MAX_MEMBERS = 4;
+const PLAYERS = ['권오광','이병주','김종남','배찬중','오영규','김기훈','홍지민','김건영','신동우','김정수','이연희','이효승'];
+
+const GAMES_INFO = [
+  { icon:'🎰', name:'윷놀이', tag:'팀전',
+    how:['말 4개를 모두 먼저 내보내는 팀이 승리합니다.','도(1칸) · 개(2칸) · 걸(3칸) · 윷(4칸) · 모(5칸) 이동합니다.','윷·모가 나오면 한 번 더 던질 수 있습니다.','상대 말을 잡으면 상대는 시작으로, 같은 팀 말이 있으면 업고 함께 이동합니다.'],
+    scoreRows:[['🥇 1위 (우승)','10점'],['🥈 2위','7점'],['🥉 3위','3점']], scoreType:'team',
+    note:'말이 잡히면 다시 시작 지점으로 돌아갑니다.' },
+  { icon:'🟫', name:'젠가', tag:'팀전',
+    how:['쌓인 블록 탑에서 블록을 하나씩 빼내어 위에 올립니다.','한 손만 사용해야 하며 탑이 무너지면 해당 팀이 패배합니다.','팀별로 교대로 진행하며 가장 오래 버티는 팀이 승리합니다.'],
+    scoreRows:[['🥇 1위 (우승)','10점'],['🥈 2위','7점'],['🥉 3위','3점']], scoreType:'team',
+    note:'탑의 아래 3층에서는 블록을 빼면 안 됩니다.' },
+  { icon:'⬛', name:'빙고', tag:'개인전',
+    how:['5×5 빙고판에 숫자를 자유롭게 채워 넣습니다.','진행자가 숫자를 무작위로 부르면 해당 칸을 지웁니다.','5줄 빙고를 가장 먼저 완성한 순서대로 순위가 결정됩니다.','같은 타이밍에 빙고를 외치면 공동 순위로 처리합니다.'],
+    scoreRows:[['🥇 1등','5점'],['🥈 2등','4점'],['🥉 3·4등','3점'],['5등 이하','1점']], scoreType:'ind',
+    note:'5줄 빙고 완성 기준이며, 완성 턴 수로 순위를 결정합니다.' },
+  { icon:'⭕', name:'동그라미 그리기', tag:'개인전',
+    how:['제한 시간 안에 최대한 완벽한 원을 그립니다.','앱/도구로 진원도(0~100%)를 측정하여 순위를 결정합니다.','동그라미 1 · 동그라미 2, 총 2라운드 진행, 각 라운드별 순위 점수 부여.'],
+    scoreRows:[['🥇 1등','12점'],['🥈 2등','11점'],['🥉 3·4등','10점'],['5등','9점'],['6등','8점'],['7등','7점'],['8등','6점'],['9등','5점'],['10등','4점'],['11등','3점'],['12등','2점']], scoreType:'ind',
+    note:'자 사용 불가. 한 번에 끊기지 않고 이어서 그려야 합니다. 라운드당 최대 12점.' },
+  { icon:'🍾', name:'병뚜껑', tag:'개인전',
+    how:['병뚜껑을 손가락으로 튕겨 테이블 끝에 가장 가깝게 보냅니다.','테이블 밖으로 떨어지면 0점 처리됩니다.','테이블 끝에 가까운 순서대로 순위를 결정합니다.'],
+    scoreRows:[['🥇 1등','12점'],['🥈 2등','11점'],['🥉 3·4등','10점'],['5등','9점'],['6등','8점'],['7등','7점'],['8등','6점'],['9등','5점'],['10등','4점'],['11등','3점'],['12등','2점'],['탈락 (밖으로)','0점']], scoreType:'ind',
+    note:'병뚜껑이 테이블 밖으로 떨어지면 해당 시도는 0점입니다.' },
+  { icon:'🦵', name:'제기차기', tag:'개인전',
+    how:['제기를 발로 차서 가장 많이 연속으로 올리는 횟수를 셉니다.','1인당 2번의 기회가 주어지며 높은 기록을 채택합니다.','찬 개수 1개당 1점, 최대 12점까지 획득 가능합니다.'],
+    scoreRows:[['12개 이상','12점 (최대)'],['개수만큼','1개 = 1점'],['0개','0점']], scoreType:'ind',
+    note:'신발이 벗겨져도 계속 진행합니다. 맨발도 허용!' }
+];
+
+const DEFAULT_TEAMS = ['팀 블루','팀 그린','팀 레드'];
+
+let S = {
+  teams: DEFAULT_TEAMS.map(name => ({ name, members: [] })),
+  tgn: ['윷놀이','젠가','게임 3'],
+  ts:  [[0,0,0],[0,0,0],[0,0,0]],
+  ign: ['빙고','동그라미 1','동그라미 2','병뚜껑','제기차기'],
+  is:  PLAYERS.map(() => [0,0,0,0,0]),
+  memo: ''
+};
+
+function persist() {
+  localStorage.setItem(KEY, JSON.stringify(S));
+  const n = new Date();
+  document.getElementById('last-saved').textContent =
+    pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds())+' 저장됨';
+  const t = document.getElementById('toast');
+  t.classList.add('show'); clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 1300);
+}
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function restore() {
+  try {
+    const r = localStorage.getItem(KEY);
+    if (!r) return;
+    const p = JSON.parse(r);
+    if (p.teams) { S.teams = p.teams; S.teams.forEach(t => { if (!Array.isArray(t.members)) t.members = t.members ? String(t.members).split('\n').map(s=>s.trim()).filter(Boolean) : []; }); }
+    if (p.tgn) S.tgn = p.tgn;
+    if (p.ts) { S.ts = p.ts; while(S.ts.length<3)S.ts.push([]); S.ts=S.ts.map(r=>{while(r.length<S.tgn.length)r.push(0);return r;}); }
+    if (p.ign) S.ign = p.ign;
+    if (p.is) { S.is = p.is; while(S.is.length<PLAYERS.length)S.is.push([]); S.is=S.is.map(r=>{while(r.length<S.ign.length)r.push(0);return r;}); }
+    if (p.memo !== undefined) S.memo = p.memo;
+  } catch(e) {}
+}
+
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+  if (id === 'memo') updateMemoInfo();
+}
+
+function getRanks(arr) { const s=[...arr].sort((a,b)=>b-a); return arr.map(v=>s.indexOf(v)+1); }
+function x(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function editTeamName(i) {
+  const name = prompt('팀 이름을 입력하세요:', S.teams[i].name);
+  if (name !== null && name.trim()) { S.teams[i].name = name.trim(); persist(); renderTeams(); }
+}
+
+function addMember(i) {
+  const inp = document.getElementById('minp-'+i);
+  const name = inp.value.trim();
+  if (!name || S.teams[i].members.length >= MAX_MEMBERS) return;
+  S.teams[i].members.push(name); inp.value = '';
+  persist(); renderTeams();
+  const next = document.getElementById('minp-'+i);
+  if (next) next.focus();
+}
+function delMember(i, mi) { S.teams[i].members.splice(mi,1); persist(); renderTeams(); }
+function memberKeydown(e,i) { if(e.key==='Enter') addMember(i); }
+
+function addGame(type) {
+  const name = prompt('추가할 게임 이름을 입력하세요:');
+  if (!name||!name.trim()) return;
+  if (type==='t') { S.tgn.push(name.trim()); S.ts=S.ts.map(r=>{r.push(0);return r;}); renderTeams(); }
+  else { S.ign.push(name.trim()); S.is=S.is.map(r=>{r.push(0);return r;}); renderInd(); }
+  persist();
+}
+function delGame(type, gi) {
+  const gn=type==='t'?S.tgn:S.ign;
+  if (gn.length<=1){alert('게임이 최소 1개는 있어야 합니다.');return;}
+  if (!confirm(`"${gn[gi]}" 게임을 삭제할까요?`)) return;
+  if (type==='t'){S.tgn.splice(gi,1);S.ts=S.ts.map(r=>{r.splice(gi,1);return r;});renderTeams();}
+  else{S.ign.splice(gi,1);S.is=S.is.map(r=>{r.splice(gi,1);return r;});renderInd();}
+  persist();
+}
+
+function renderTeams() {
+  const gc=S.tgn.length;
+  const tots=S.ts.map(row=>row.slice(0,gc).reduce((a,b)=>a+b,0));
+  const rnks=getRanks(tots);
+  const crowns=['🥇','🥈','🥉'];
+
+  document.getElementById('team-rank-grid').innerHTML = S.teams.map((t,i) => {
+    const r=rnks[i]; const rc=r===1?'rank-1':r===2?'rank-2':'';
+    const cnt=t.members.length; const isFull=cnt>=MAX_MEMBERS;
+    const chipsHtml=cnt>0
+      ? t.members.map((m,mi)=>`<span class="member-chip">${x(m)}<button class="member-del" onclick="delMember(${i},${mi})">×</button></span>`).join('')
+      : `<span class="member-empty">구성원 미입력</span>`;
+    const addRowHtml=!isFull?`<div class="member-add-row">
+      <input id="minp-${i}" class="member-add-input" placeholder="이름 입력 후 Enter" onkeydown="memberKeydown(event,${i})" maxlength="10">
+      <button class="member-add-btn" onclick="addMember(${i})">추가</button>
+    </div>`:'';
+    return `<div class="team-rank-card ${rc}">
+      <div class="crown">${crowns[r-1]}</div>
+      <div class="team-name-row">
+        <span class="team-name-display" onclick="editTeamName(${i})">${x(t.name)}</span>
+        <button class="team-name-edit-btn" onclick="editTeamName(${i})">✎</button>
+      </div>
+      <div class="card-score">${tots[i]}</div>
+      <div class="card-sublabel">합계 점수</div>
+      <div class="team-members">
+        <div class="members-label">
+          <span>구성원</span>
+          <span class="member-count-badge">${cnt}/${MAX_MEMBERS}</span>
+        </div>
+        <div class="member-list">${chipsHtml}</div>
+        ${addRowHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  const gh=S.tgn.map((n,gi)=>`<th class="g-th">${x(n)}<button class="del-game-btn" onclick="delGame('t',${gi})">×</button></th>`).join('');
+  const tRows=S.teams.map((t,ti)=>{
+    const r=rnks[ti]; const rc=r===1?'t1':r===2?'t2':'';
+    const cells=S.tgn.map((_,gi)=>{const v=S.ts[ti][gi]||0;return `<td class="sc-td"><div class="sc-inner"><button class="sc-btn" onclick="adjT(${ti},${gi},-1)">−</button><span class="sc-val" onclick="edit(this,'t',${ti},${gi})">${v}</span><button class="sc-btn" onclick="adjT(${ti},${gi},1)">+</button></div></td>`;}).join('');
+    return `<tr class="${rc}"><td class="label-td">${x(t.name)}</td>${cells}<td class="sum-td">${tots[ti]}</td></tr>`;
+  }).join('');
+  document.getElementById('team-table').innerHTML=`<thead><tr><th>팀</th>${gh}<th class="sum-th">합계</th></tr></thead><tbody>${tRows}</tbody>`;
+}
+function adjT(ti,gi,d){S.ts[ti][gi]=(S.ts[ti][gi]||0)+d;persist();renderTeams();}
+function resetTeams(){if(!confirm('팀전 점수를 모두 0으로 초기화할까요?'))return;S.ts=S.teams.map(()=>Array(S.tgn.length).fill(0));persist();renderTeams();}
+
+function renderInd() {
+  const gc=S.ign.length;
+  const tots=S.is.map(row=>row.slice(0,gc).reduce((a,b)=>a+b,0));
+  const rnks=getRanks(tots);
+  const gh=S.ign.map((n,gi)=>`<th class="g-th">${x(n)}<button class="del-game-btn" onclick="delGame('i',${gi})">×</button></th>`).join('');
+  const pRows=PLAYERS.map((name,pi)=>{
+    const r=rnks[pi];
+    const rc=r===1?'p1':r===2?'p2':r===3?'p3':r===4?'p4':'pn';
+    const medal=r===1?'🥇':r===2?'🥈':(r===3||r===4)?'🥉':r;
+    const cells=S.ign.map((_,gi)=>{const v=S.is[pi][gi]||0;return `<td class="sc-td"><div class="sc-inner"><button class="sc-btn" onclick="adjI(${pi},${gi},-1)">−</button><span class="sc-val" onclick="edit(this,'i',${pi},${gi})">${v}</span><button class="sc-btn" onclick="adjI(${pi},${gi},1)">+</button></div></td>`;}).join('');
+    return `<tr class="${rc}"><td class="rank-td">${medal}</td><td class="name-td">${x(name)}</td>${cells}<td class="sum-td">${tots[pi]}</td></tr>`;
+  }).join('');
+  document.getElementById('ind-table').innerHTML=`<thead><tr><th></th><th>이름</th>${gh}<th class="sum-th">합계</th></tr></thead><tbody>${pRows}</tbody>`;
+}
+function adjI(pi,gi,d){S.is[pi][gi]=(S.is[pi][gi]||0)+d;persist();renderInd();}
+function resetInd(){if(!confirm('개인전 점수를 모두 0으로 초기화할까요?'))return;S.is=PLAYERS.map(()=>Array(S.ign.length).fill(0));persist();renderInd();}
+
+function edit(el,type,a,b){
+  if(el.querySelector('input'))return;
+  const cur=type==='t'?(S.ts[a][b]||0):(S.is[a][b]||0);
+  const inp=document.createElement('input');
+  inp.className='sc-edit';inp.type='number';inp.value=cur;
+  el.textContent='';el.appendChild(inp);inp.focus();inp.select();
+  function commit(){const v=parseInt(inp.value);if(!isNaN(v)){if(type==='t')S.ts[a][b]=v;else S.is[a][b]=v;}persist();if(type==='t')renderTeams();else renderInd();}
+  inp.addEventListener('blur',commit);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();if(e.key==='Escape'){type==='t'?renderTeams():renderInd();}});
+}
+
+function renderAccordion() {
+  document.getElementById('accordion-list').innerHTML = GAMES_INFO.map((g,idx) => {
+    const scoreRowsHtml=g.scoreRows.map(([rank,score])=>`<tr><td>${x(rank)}</td><td><b>${x(score)}</b></td></tr>`).join('');
+    const scoreClass=g.scoreType==='team'?'team-score':'ind-score';
+    return `<div class="accordion-item">
+      <button class="accordion-header" onclick="toggleAcc(${idx},this)">
+        <div class="acc-left">
+          <span class="acc-icon">${g.icon}</span>
+          <span class="acc-title">${x(g.name)}</span>
+          <span class="acc-tag">${x(g.tag)}</span>
+        </div>
+        <span class="acc-arrow">▼</span>
+      </button>
+      <div class="accordion-body" id="acc-body-${idx}">
+        <div class="accordion-body-inner">
+          <div class="game-desc-section">
+            <div class="desc-label">진행 방법</div>
+            <div class="desc-text"><ul>${g.how.map(h=>`<li>${x(h)}</li>`).join('')}</ul></div>
+          </div>
+          <div class="game-desc-section">
+            <div class="desc-label">점수 기준</div>
+            <table class="score-table-sm ${scoreClass}">
+              <thead><tr><th>순위</th><th>점수</th></tr></thead>
+              <tbody>${scoreRowsHtml}</tbody>
+            </table>
+          </div>
+          <div class="desc-note">📌 ${x(g.note)}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleAcc(idx,btn){
+  const body=document.getElementById('acc-body-'+idx);
+  const isOpen=body.classList.contains('open');
+  body.classList.toggle('open',!isOpen);
+  btn.classList.toggle('open',!isOpen);
+}
+
+function saveMemo(){ S.memo=document.getElementById('memo-area').value; persist(); updateMemoInfo(); }
+function updateMemoInfo(){
+  const txt=S.memo||''; const chars=txt.length; const lines=txt?txt.split('\n').length:0;
+  document.getElementById('memo-info').textContent=chars>0?`${chars}자 · ${lines}줄`:'';
+}
+function copyMemo(){
+  const ta=document.getElementById('memo-area');
+  if(!ta.value){alert('복사할 내용이 없습니다.');return;}
+  navigator.clipboard.writeText(ta.value).then(()=>{
+    const btn=event.target; const orig=btn.textContent;
+    btn.textContent='복사됨!'; setTimeout(()=>btn.textContent=orig,1500);
+  }).catch(()=>{ta.select();document.execCommand('copy');});
+}
+function clearMemo(){
+  if(!S.memo) return;
+  if(!confirm('메모 내용을 모두 삭제할까요?'))return;
+  S.memo=''; document.getElementById('memo-area').value='';
+  persist(); updateMemoInfo();
+}
+
+restore();
+renderTeams();
+renderInd();
+renderAccordion();
+document.getElementById('memo-area').value=S.memo||'';
+updateMemoInfo();
+</script>
+</body>
+</html>
